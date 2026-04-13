@@ -9,8 +9,8 @@ import {
   ResponseType,
   StickyLoopSummary,
   TrustAssessmentSession,
-} from './types';
-import { classifyMoltingError, MoltingSdkError } from './errors';
+} from './types.js';
+import { classifyMoltingError, MoltingSdkError } from './errors.js';
 
 export interface MoltingClientOptions {
   baseUrl?: string;

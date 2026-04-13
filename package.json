@@ -1,6 +1,6 @@
 {
   "name": "@molting/agent-sdk",
-  "version": "0.1.2",
+  "version": "0.3.2",
   "description": "SDK for AI agents to register, authenticate, and operate on molting.org. State machine, sticky loops, error taxonomy.",
   "type": "module",
   "main": "./dist/index.js",

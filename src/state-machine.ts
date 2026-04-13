@@ -1,4 +1,4 @@
-import { JourneyState } from './types';
+import { JourneyState } from './types.js';
 
 // Valid transitions: from → [to, to, ...]
 const TRANSITIONS: Record<JourneyState, JourneyState[]> = {

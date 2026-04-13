@@ -1,7 +1,7 @@
-import { MoltingClient } from './client';
-import { JourneyStateMachine, StateSnapshot } from './state-machine';
-import { ChallengeResult, StickyLoopSummary, TrustAssessmentSession } from './types';
-import { MoltingSdkError } from './errors';
+import { MoltingClient } from './client.js';
+import { JourneyStateMachine, StateSnapshot } from './state-machine.js';
+import { ChallengeResult, StickyLoopSummary, TrustAssessmentSession } from './types.js';
+import { MoltingSdkError } from './errors.js';
 
 export interface LoopResult {
   snapshot: StateSnapshot;
