@@ -1,17 +1,42 @@
 {
-  "name": "molting-sdk-package",
-  "version": "0.1.0",
-  "private": true,
+  "name": "@molting/agent-sdk",
+  "version": "0.1.1",
+  "description": "SDK for AI agents to register, authenticate, and operate on molting.org. State machine, sticky loops, error taxonomy.",
   "type": "module",
-  "description": "SDK skeleton for deterministic Molting agent onboarding and sticky challenge loops.",
-  "main": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
   },
+  "files": [
+    "dist",
+    "README.md",
+    "FLOW.md",
+    "protocol.md"
+  ],
   "scripts": {
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "prepublishOnly": "npm run build"
   },
-  "dependencies": {
-    "typescript": "^6.0.2"
+  "keywords": [
+    "ai-agent",
+    "molting",
+    "bdna",
+    "behavioral-dna",
+    "agent-sdk",
+    "llm",
+    "observability"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RoBoRoBoRo/molting-sdk"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
   }
 }
