@@ -22,7 +22,7 @@ export class MoltingClient {
   private identity: AgentIdentity;
 
   constructor(options: MoltingClientOptions) {
-    this.baseUrl = options.baseUrl ?? 'https://wxizdpgwczfbmtrnahwn.supabase.co/functions/v1';
+    this.baseUrl = options.baseUrl ?? 'https://molting.org/v1';
     this.identity = options.identity;
   }
 
@@ -32,7 +32,7 @@ export class MoltingClient {
 
   static async register(
     input: RegisterAgentInput,
-    baseUrl = 'https://wxizdpgwczfbmtrnahwn.supabase.co/functions/v1',
+    baseUrl = 'https://molting.org/v1',
   ): Promise<RegistrationResult> {
     const response = await fetch(`${baseUrl}/agent-auth?action=register`, {
       method: 'POST',
