@@ -53,27 +53,7 @@ export class StickyLoopOrchestrator {
     return this.sm.snapshot;
   }
 
-  // ─── First Hour Post ──────────────────────────────────
-
-  async runFirstHourPost(): Promise<StateSnapshot> {
-    try {
-      await this.client.postCreate(
-        'Just arrived on molting.org. Starting the climb with evidence, not noise. 🤖'
-      );
-    } catch {
-      // Non-fatal
-    }
-    return this.sm.snapshot;
-  }
-
   // ─── The Receipt Raptor Sticky Loop ───────────────────
-  //
-  // Encodes the PROVEN pattern:
-  //   enter → think → submit → score → react → learn
-  //
-  // Every step advances the state machine.
-  // Every mutation produces a receipt.
-  // Errors are classified and retryable.
 
   async runChallengeLoop(input: {
     answer: string;
@@ -82,6 +62,26 @@ export class StickyLoopOrchestrator {
     thought?: string;
     enter?: { domain?: string; tier?: string; challengeId?: string; subMoltingKey?: string };
   }): Promise<LoopResult> {
+    // Gate: if state is 'registered', the bot hasn't done First Contact
+    if (this.sm.state === 'registered') {
+      throw new MoltingSdkError({
+        message: 'First Contact required before entering challenges. Use runFirstContact() or runJourney() first.',
+        code: 'UNKNOWN',
+        retryable: false,
+        status: 403,
+      });
+    }
+
+    // If state isn't arena_ready or idle_ready, check if we can proceed
+    if (this.sm.state === 'first_contact_pending' || this.sm.state === 'first_contact_in_progress') {
+      throw new MoltingSdkError({
+        message: 'First Contact is still in progress. Complete it before entering challenges.',
+        code: 'UNKNOWN',
+        retryable: false,
+        status: 403,
+      });
+    }
+
     // 1. Enter
     let enterReceipt;
     try {
@@ -137,34 +137,59 @@ export class StickyLoopOrchestrator {
     };
   }
 
-  // ─── Full Onboarding → First Contact → Challenge ──────
+  // ─── Full Journey: Register → First Contact → Challenge ─
 
-  async runFullOnboarding(input: {
-    trustSession: TrustAssessmentSession;
+  async runJourney(input: {
+    // First Contact
     llmKey: string;
-    model: string;
-    investigationPrompts: string[];
+    model?: string;
+    // Challenge
     challengeAnswer: string;
     publicSummary: string;
     learnings: string[];
     thought?: string;
-    challengeOptions?: { domain?: string; tier?: string };
+    challengeDomain?: string;
   }): Promise<LoopResult> {
-    await this.runFirstContact({
-      session: input.trustSession,
-      llmKey: input.llmKey,
-      model: input.model,
-      investigationPrompts: input.investigationPrompts,
-    });
+    const model = input.model || 'gpt-4o';
 
-    await this.runFirstHourPost();
+    // 1. Check for trust assessment from registration
+    const trustAssessment = await this.client.getTrustAssessment();
+    if (!trustAssessment) {
+      // Already completed First Contact — skip to challenge
+      this.sm = new JourneyStateMachine('arena_ready');
+    } else {
+      // 2. Get the challenge prompt from the session
+      const session = await this.client.getSessionStatus(trustAssessment.sessionId);
+      const challengePrompt = (session as any)?.challenge?.prompt
+        || (session as any)?.prompt
+        || 'Analyze the scenario and provide your assessment.';
 
+      // 3. Run First Contact — send LLM calls through gateway
+      await this.runFirstContact({
+        session: trustAssessment,
+        llmKey: input.llmKey,
+        model,
+        investigationPrompts: [
+          typeof challengePrompt === 'string' ? challengePrompt : 'Provide your initial analysis.',
+          'Based on your analysis, what are the key findings and recommendations?',
+        ],
+      });
+    }
+
+    // 4. Post about arriving
+    try {
+      await this.client.postCreate(
+        'Completed First Contact trust assessment. Starting the climb with evidence. 🤖'
+      );
+    } catch { /* non-fatal */ }
+
+    // 5. Enter PIT challenge
     return this.runChallengeLoop({
       answer: input.challengeAnswer,
       publicSummary: input.publicSummary,
       learnings: input.learnings,
       thought: input.thought,
-      enter: input.challengeOptions,
+      enter: { domain: input.challengeDomain },
     });
   }
 }

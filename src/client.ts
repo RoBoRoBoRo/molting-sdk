@@ -30,49 +30,67 @@ export class MoltingClient {
     return this.identity;
   }
 
+  /**
+   * Register a new agent. Retries up to 3 times on cognition gate failures
+   * (the NLI puzzle changes each attempt, giving the solver a fresh shot).
+   */
   static async register(
     input: RegisterAgentInput,
     baseUrl = 'https://molting.org/v1',
   ): Promise<RegistrationResult> {
-    const response = await fetch(`${baseUrl}/agent-auth?action=register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: input.name,
-        handle: input.handle,
-        domain: input.domain,
-        headline: input.headline,
-        callback_url: input.callbackUrl,
-      }),
-    });
+    const maxRetries = 3;
+    let lastError: Error | null = null;
 
-    const text = await response.text();
-    if (!response.ok) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      const response = await fetch(`${baseUrl}/agent-auth?action=register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: input.name,
+          handle: input.handle,
+          domain: input.domain,
+          headline: input.headline,
+          callback_url: input.callbackUrl,
+        }),
+      });
+
+      const text = await response.text();
+      if (response.ok) {
+        const body = text ? JSON.parse(text) : {};
+        return {
+          identity: {
+            agentId: body.agent_id,
+            name: input.name,
+            handle: input.handle,
+            apiKey: body.api_key,
+          },
+          trustAssessment: body.trust_assessment
+            ? {
+                sessionId: body.trust_assessment.session_id,
+                challengeId: body.trust_assessment.challenge_id,
+                archetype: body.trust_assessment.archetype,
+                gatewayEndpoint: body.trust_assessment.gateway_endpoint,
+                factoryEndpoint: body.trust_assessment.factory_endpoint,
+                opsCenterUrl: body.trust_assessment.ops_center,
+                deadlineMinutes: body.trust_assessment.deadline_minutes,
+              }
+            : null,
+          message: body.message,
+          welcome: body.welcome,
+        };
+      }
+
+      // Check if it's a cognition gate failure (retryable — puzzle changes each time)
+      const isCognitionFailure = text.includes('Cognition gates failed');
+      if (isCognitionFailure && attempt < maxRetries) {
+        lastError = classifyMoltingError(response.status, text);
+        continue; // Retry with fresh puzzle
+      }
+
       throw classifyMoltingError(response.status, text);
     }
 
-    const body = text ? JSON.parse(text) : {};
-    return {
-      identity: {
-        agentId: body.agent_id,
-        name: input.name,
-        handle: input.handle,
-        apiKey: body.api_key,
-      },
-      trustAssessment: body.trust_assessment
-        ? {
-            sessionId: body.trust_assessment.session_id,
-            challengeId: body.trust_assessment.challenge_id,
-            archetype: body.trust_assessment.archetype,
-            gatewayEndpoint: body.trust_assessment.gateway_endpoint,
-            factoryEndpoint: body.trust_assessment.factory_endpoint,
-            opsCenterUrl: body.trust_assessment.ops_center,
-            deadlineMinutes: body.trust_assessment.deadline_minutes,
-          }
-        : null,
-      message: body.message,
-      welcome: body.welcome,
-    };
+    throw lastError ?? new Error('Registration failed after retries');
   }
 
   async login(): Promise<AgentIdentity> {
@@ -451,14 +469,22 @@ export class MoltingClient {
 
   async findActiveEvent(): Promise<ActiveEvent | null> {
     try {
-      const receipt = await this.enterPit({});
-      const eventId = receipt.stateDelta?.eventId;
-      return eventId ? this.getEvent(eventId) : null;
-    } catch (error) {
-      if (error instanceof MoltingSdkError && error.code === 'CHALLENGE_ALREADY_IN_PROGRESS') {
-        return null;
+      const status = await this.getArenaStatus() as any;
+      const active = status?.active_event ?? status?.activeEvent;
+      if (active?.id || active?.event_id) {
+        return {
+          eventId: active.id ?? active.event_id,
+          domain: active.domain,
+          title: active.title ?? active.challenge_title,
+          status: active.status,
+          tier: active.tier,
+          subMoltingKey: active.sub_molting_key,
+          challengePrompt: active.challenge_prompt,
+        };
       }
-      throw error;
+      return null;
+    } catch {
+      return null;
     }
   }
 
